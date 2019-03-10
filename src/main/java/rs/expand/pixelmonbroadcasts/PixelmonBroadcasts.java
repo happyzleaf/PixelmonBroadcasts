@@ -21,6 +21,7 @@ import org.spongepowered.api.event.game.state.GameStartedServerEvent;
 import org.spongepowered.api.plugin.Dependency;
 import org.spongepowered.api.plugin.Plugin;
 import org.spongepowered.api.text.Text;
+import rs.expand.pixelmonbroadcasts.bridges.PixelmonOverlayBridge;
 import rs.expand.pixelmonbroadcasts.commands.BaseCommand;
 import rs.expand.pixelmonbroadcasts.commands.Reload;
 import rs.expand.pixelmonbroadcasts.commands.Toggle;
@@ -45,7 +46,6 @@ import static org.apache.commons.lang3.BooleanUtils.toBooleanObject;
       NOTE: Stuff that's here will not necessarily get done.
 \*                                                              */
 
-// TODO: Pixelmon Overlay integration for noticeboard message syncing. Important.
 // TODO: Implement logging to a custom log file with the right option passed.
 // TODO: Ideas for new events: HA, successful breed, event spawns, maaaaybe level.
 // TODO: Listen to commands being used, fire the right event if we have a successful hatch/spawn/etcetera.
@@ -61,8 +61,11 @@ import static org.apache.commons.lang3.BooleanUtils.toBooleanObject;
 (
         id = "pixelmonbroadcasts",
         name = "PixelmonBroadcasts",
-        version = "0.4",
-        dependencies = @Dependency(id = "pixelmon", version = "7.0"),
+        version = "0.4.1",
+        dependencies = {
+                @Dependency(id = "pixelmon", version = "7.0.3"),
+                @Dependency(id = "pixelmonoverlay", version = "1.1.0", optional = true)
+        },
         description = "Adds fully custom legendary-like messages for tons of events, and optionally logs them, too.",
         authors = "XpanD"
 
@@ -86,9 +89,6 @@ public class PixelmonBroadcasts
     public static Integer configVersion;
     public static String commandAlias;
     public static Boolean showAbilities;
-
-    // Set up a hashmap for tracking shown Pixelmon notices. Allows us to kill them after a fixed amount of time.
-    public static HashMap<UUID, Long> noticeExpiryMap = new HashMap<>();
 
     // Create and set up config paths, and grab an OS-specific file path separator. This will usually be a forward slash.
     private static String fileSystemSeparator = FileSystems.getDefault().getSeparator();
@@ -174,34 +174,8 @@ public class PixelmonBroadcasts
     {
         if (loadedCorrectly)
         {
-            // Set up a repeating task. It checks if any players need their notices wiped. (happens every 10-12s)
-            // Won't do much if Pixelmon's notice board (the thing that shows messages at the top) isn't being sent to.
-            final ScheduledExecutorService noticeClearTimer = Executors.newSingleThreadScheduledExecutor();
-            final Server server = Sponge.getGame().getServer();
-            noticeClearTimer.scheduleWithFixedDelay(() ->
-            {
-                // Grab current time in milliseconds.
-                final long currentTime = System.currentTimeMillis();
-
-                // Iterate through all online players.
-                server.getOnlinePlayers().forEach(player ->
-                {
-                    // Check if our player is using any noticeboard-enabled broadcasts.
-                    if (noticeExpiryMap.containsKey(player.getUniqueId()))
-                    {
-                        // Are we 10 or more seconds ahead of the last time a notice was added? Hide it!
-                        if (currentTime - noticeExpiryMap.get(player.getUniqueId()) >= 10000)
-                        {
-                            // Hide the overlay for the targeted player.
-                            NoticeOverlay.hide((EntityPlayerMP) player);
-
-                            // Remove the player's UUID from the map. This prevents needless clears every iteration.
-                            noticeExpiryMap.remove(player.getUniqueId());
-                        }
-                    }
-                });
-            }, 0, 2, TimeUnit.SECONDS);
-
+            PixelmonOverlayBridge.setup(this);
+            
             // Check Pixelmon's config and get whether the legendary spawning message is in.
             final Boolean configStatus = toBooleanObject(
                     PixelmonConfig.getConfig().getNode("Spawning", "displayLegendaryGlobalMessage").getString());

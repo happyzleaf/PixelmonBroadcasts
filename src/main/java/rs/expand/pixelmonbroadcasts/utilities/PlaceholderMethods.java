@@ -5,6 +5,7 @@ import com.pixelmonmod.pixelmon.api.overlay.notice.EnumOverlayLayout;
 import com.pixelmonmod.pixelmon.api.overlay.notice.NoticeOverlay;
 import com.pixelmonmod.pixelmon.api.pokemon.Pokemon;
 import com.pixelmonmod.pixelmon.api.pokemon.PokemonSpec;
+import com.pixelmonmod.pixelmon.client.gui.custom.overlays.OverlayGraphicType;
 import com.pixelmonmod.pixelmon.entities.EntityWormhole;
 import com.pixelmonmod.pixelmon.entities.pixelmon.EntityPixelmon;
 import com.pixelmonmod.pixelmon.entities.pixelmon.stats.IVStore;
@@ -24,9 +25,11 @@ import org.spongepowered.api.text.action.TextActions;
 import org.spongepowered.api.text.serializer.TextSerializers;
 import org.spongepowered.api.world.Location;
 import org.spongepowered.api.world.World;
+import rs.expand.pixelmonbroadcasts.bridges.PixelmonOverlayBridge;
 import rs.expand.pixelmonbroadcasts.enums.EventData;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static rs.expand.pixelmonbroadcasts.PixelmonBroadcasts.*;
@@ -135,10 +138,17 @@ public class PlaceholderMethods
 
             if (event.options().toLowerCase().contains("notice"))
             {
+                // TODO: if you want you can uncomment this and modify the behavior, maybe telling them that this won't work
+                /*
+                if (Sponge.getPluginManager().isLoaded("pixelmonoverlay")) {
+
+                }
+                */
+                
                 if (object1 != null)
                 {
                     // Combine the passed broadcast type's prefix with the broadcast/permission key to make a full broadcast key.
-                    final String broadcast = getBroadcast("notice." + event.key(), object1, object2, player1, player2);
+                    final String line = getBroadcast("notice." + event.key(), object1, object2, player1, player2);
 
                     // Figure out how to get a Pokemon object for our purposes.
                     Pokemon pokemon;
@@ -149,52 +159,28 @@ public class PlaceholderMethods
                     else
                         pokemon = null;
 
-                    // Set up a builder for our notice.
-                    NoticeOverlay.Builder builder = NoticeOverlay.builder().setLayout(EnumOverlayLayout.LEFT_AND_RIGHT);
+                    String spec;
 
                     // Do some magic for getting the right sprite.
                     if (pokemon != null)
                     {
                         // Puts up a sprite matching the current Pokémon's species, form, gender and shiny status. Nice, eh?
-                        builder.setPokemonSprite
-                        (
-                                // TODO: Custom texture support is completely untested. Get some confirmation.
-                                new PokemonSpec
-                                (
-                                        pokemon.getSpecies().getPokemonName(),
-                                        "form:" + pokemon.getForm(),
-                                        "gender:" + pokemon.getGender().ordinal(), // TODO: Test in 7.0.4 or something.
-                                        pokemon.isShiny() ? "shiny" : "!shiny",
-                                        pokemon.getCustomTexture().isEmpty() ? "" : "texture:" + pokemon.getCustomTexture()
-                                )
-                        );
+						// TODO: Custom texture support is completely untested. Get some confirmation.
+						// TODO (happyz?): Change when Pokemon.class will be supported by the NoticeOverlay
+                        spec = pokemon.getSpecies().getPokemonName()
+								+ "form:" + pokemon.getForm()
+								+ "gender:" + pokemon.getGender().ordinal() // TODO: Test in 7.0.4 or something.
+                                + (pokemon.isShiny() ? "shiny" : "!shiny")
+                                + (pokemon.getCustomTexture().isEmpty() ? "" : "texture:" + pokemon.getCustomTexture());
                     }
                     else
                     {
                         // Creates a question mark Unown using specs.
-                        builder.setPokemonSprite(new PokemonSpec("Unown", "form:26"));
+						spec = "Unown form:26";
                     }
-
-                    // Add the message here, after applying other stuff. Doing earlier causes an NPE, apparently. Dunno.
-                    builder.setLines(broadcast);
-
-                    // Sift through the online players.
-                    Sponge.getGame().getServer().getOnlinePlayers().forEach((recipient) ->
-                    {
-                        // Does the iterated player have the needed notifier permission?
-                        if (recipient.hasPermission("pixelmonbroadcasts.notify." + event.key()))
-                        {
-                            // Does the iterated player want our broadcast? Send it if we get "true" returned.
-                            if (checkToggleStatus((EntityPlayer) recipient, event.flags()))
-                            {
-                                // Prints a message to Pixelmon's notice board. (cool box at the top)
-                                builder.sendTo((EntityPlayerMP) recipient);
-
-                                // Put the player's UUID and the current time into a hashmap. Check regularly to wipe notices.
-                                noticeExpiryMap.put(recipient.getUniqueId(), System.currentTimeMillis());
-                            }
-                        }
-                    });
+                    
+                    // TODO: the duration can be exposed to the configs. Or set to null to use the api's default.
+					PixelmonOverlayBridge.display(EnumOverlayLayout.LEFT_AND_RIGHT, OverlayGraphicType.PokemonSprite, Collections.singletonList(line), 10L, spec, null);
                 }
             }
         }
